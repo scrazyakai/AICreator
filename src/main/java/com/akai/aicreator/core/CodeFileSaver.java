@@ -9,7 +9,7 @@ import com.akai.aicreator.model.enums.CodeGenTypeEnum;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-
+@Deprecated
 public class CodeFileSaver {
     //文件保存的根目录
     private static final String FILE_ROOT_PATH = System.getProperty("user.dir") + "/tmp/code_output";
