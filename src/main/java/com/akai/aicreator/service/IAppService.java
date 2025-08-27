@@ -8,6 +8,7 @@ import com.akai.aicreator.model.request.AppQueryRequest;
 import com.akai.aicreator.model.vo.AppInfoVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -91,5 +92,7 @@ public interface IAppService extends IService<App> {
      * @return 分页结果
      */
     Page<AppInfoVO> pageAppsForAdmin(AppQueryRequest appQueryRequest);
+    Flux<String> chatToGenCode(Long appId, String message);
+    String deployApp(Long appId);
 
 }

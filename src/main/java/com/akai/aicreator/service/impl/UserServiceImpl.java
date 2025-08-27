@@ -32,6 +32,11 @@ import java.util.regex.Pattern;
  */
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
+    @Override
+    public User getLoginUser() {
+        long userId = StpUtil.getLoginIdAsLong();
+        return getById(userId);
+    }
 
     @Override
     public long userRegister(String account,String password,String checkPassword) {
@@ -65,7 +70,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         User user = new User();
         user.setUserAccount(account);
         user.setUserPassword(safePassword);
-        user.setUserName("用户");
+        String suffix = "" + UUID.randomUUID();
+        String userName = "用户" + suffix;
+        user.setUserName(userName);
         user.setUserRole(UserRoleEnum.USER.getValue());
         boolean save = this.save(user);
         if(!save){

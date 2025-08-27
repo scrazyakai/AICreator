@@ -1,22 +1,35 @@
 package com.akai.aicreator.service.impl;
 
+import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.io.IORuntimeException;
+import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
+import com.akai.aicreator.ai.AiCodeGeneratorService;
 import com.akai.aicreator.common.ErrorCode;
+import com.akai.aicreator.constant.AppConstant;
+import com.akai.aicreator.core.AiCodeGeneratorFacade;
 import com.akai.aicreator.exception.BusinessException;
 import com.akai.aicreator.mapper.AppMapper;
 import com.akai.aicreator.model.entity.App;
+import com.akai.aicreator.model.entity.User;
+import com.akai.aicreator.model.enums.CodeGenTypeEnum;
 import com.akai.aicreator.model.request.AppAdminUpdateRequest;
 import com.akai.aicreator.model.request.AppCreateRequest;
 import com.akai.aicreator.model.request.AppQueryRequest;
 import com.akai.aicreator.model.request.AppUpdateRequest;
 import com.akai.aicreator.model.vo.AppInfoVO;
 import com.akai.aicreator.service.IAppService;
+import com.akai.aicreator.service.IUserService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import io.netty.util.internal.ThrowableUtil;
+import jakarta.annotation.Resource;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
+import java.io.File;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,6 +41,83 @@ import java.util.stream.Collectors;
  */
 @Service
 public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppService {
+    @Resource
+    private AiCodeGeneratorFacade aiCodeGeneratorFacade;
+    @Resource
+    private IUserService userService;
+    @Override
+    public Flux<String> chatToGenCode(Long appId, String message) {
+        if(appId == null || appId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"appId不能为空");
+        }
+        if(message == null || message.isEmpty()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"message不能为空");
+        }
+        App app = this.getById(appId);
+        if(app == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"应用不存在");
+        }
+        User loginUser = userService.getLoginUser();
+        if(!loginUser.getId().equals(app.getUserId())) {
+            throw new BusinessException(ErrorCode.NO_AUTH,"无权限访问该应用");
+        }
+        String codeGenType = app.getCodeGenType();
+        CodeGenTypeEnum codeTypeEnum = CodeGenTypeEnum.getEnumByValue(codeGenType);
+        if(codeGenType == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"应用编码生成类型不能为空");
+        }
+        return aiCodeGeneratorFacade.generateAndSaveCodeStream(message,codeTypeEnum,appId);
+    }
+
+    @Override
+    public String deployApp(Long appId) {
+        //参数校验
+        if(appId == null || appId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"appId不能为空");
+        }
+        User loginUser = userService.getLoginUser();
+        //查询应用信息
+        App app = this.getById(appId);
+        if(app == null){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"应用不存在");
+        }
+        //权限校验
+        if(!loginUser.getId().equals(app.getUserId())) {
+            throw new BusinessException(ErrorCode.NO_AUTH,"无权限访问该应用");
+        }
+        //检验部署码
+        String deployKey = app.getDeployKey();
+        if(StrUtil.isBlank(deployKey)) {
+            deployKey = RandomUtil.randomString(6);
+        }
+        //获取代码生成类型
+        String codeGenType = app.getCodeGenType();
+        String sourceDirName = codeGenType + "_" + appId;
+        String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator +  sourceDirName;
+        //检验文件是否存在
+        File sourceDir = new File(sourceDirPath);
+        if(!sourceDir.exists() || !sourceDir.isDirectory()) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR,"代码文件不存在,请先生成代码");
+        }
+        //复制文件到部署目录
+        String deployDirPath = AppConstant.CODE_DEPLOY_ROOT_DIR + File.separator +  deployKey;
+        try {
+            FileUtil.copyContent(sourceDir, new File(deployDirPath), true);
+        } catch (IORuntimeException e) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR,"代码部署失败" + e);
+        }
+        //更新应用的developKey和部署时间
+        App updateApp = new App();
+        updateApp.setId(appId);
+        updateApp.setDeployKey(deployKey);
+        updateApp.setDeployedTime(LocalDateTime.now());
+        boolean updateResult = this.updateById(updateApp);
+        if(!updateResult) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR,"更新应用信息失败");
+        }
+        //返回部署信息
+        return String.format("%s/%s/", AppConstant.CODE_DEPLOY_HOST, deployKey);
+    }
 
     @Override
     public Long createApp(AppCreateRequest appCreateRequest, Long userId) {
@@ -326,5 +416,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         voPage.setRecords(appInfoVOList);
         return voPage;
     }
+
+
 
 }

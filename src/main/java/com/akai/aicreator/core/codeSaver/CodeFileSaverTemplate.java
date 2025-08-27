@@ -12,11 +12,11 @@ import java.nio.charset.StandardCharsets;
 
 public abstract class CodeFileSaverTemplate<T> {
     private static final String FILE_ROOT_PATH = System.getProperty("user.dir") + File.separator + "tmp" + File.separator + "code_output";
-    public final File saveCode(T result){
+    public final File saveCode(T result,Long appId){
         //校验输入
         validateInput(result);
         //统一文件路径
-        String baseDirPath = buildUniqueDir();
+        String baseDirPath = buildUniqueDir(appId);
         //保存文件
         saveFiles(result,baseDirPath);
         //返回文件目录对象
@@ -30,9 +30,12 @@ public abstract class CodeFileSaverTemplate<T> {
     }
 
 
-    protected final String buildUniqueDir() {
+    protected final String buildUniqueDir(Long appId){
+        if(appId == null){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"appId不能为空");
+        }
         String codeType = getCodeType().getValue();
-        String uniqueDirName = StrUtil.format("{}_{}",codeType, IdUtil.getSnowflakeNextIdStr());
+        String uniqueDirName = StrUtil.format("{}_{}",codeType, appId);
         String filePath =  FILE_ROOT_PATH+ File.separator + uniqueDirName;
         FileUtil.mkdir(filePath);
         return filePath;

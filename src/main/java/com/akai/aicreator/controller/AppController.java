@@ -7,17 +7,18 @@ import com.akai.aicreator.common.ResultUtils;
 import com.akai.aicreator.model.entity.User;
 import com.akai.aicreator.exception.BusinessException;
 import com.akai.aicreator.model.enums.UserRoleEnum;
-import com.akai.aicreator.model.request.AppAdminUpdateRequest;
-import com.akai.aicreator.model.request.AppCreateRequest;
-import com.akai.aicreator.model.request.AppQueryRequest;
-import com.akai.aicreator.model.request.AppUpdateRequest;
+import com.akai.aicreator.model.request.*;
 import com.akai.aicreator.model.vo.AppInfoVO;
 import com.akai.aicreator.service.IAppService;
 import com.akai.aicreator.service.IUserService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import dev.langchain4j.http.client.sse.ServerSentEvent;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 /**
  * 应用 前端控制器
@@ -33,7 +34,36 @@ public class AppController {
 
     @Resource
     private IUserService userService;
+    /**
+     * 应用部署
+     *
+     * @param appDeployRequest 部署请求
+     * @return 部署 URL
+     */
+    @PostMapping("/deploy")
+    public BaseResponse<String> deployApp(@RequestBody AppDeployRequest appDeployRequest) {
+        if(appDeployRequest == null){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"部署请求不能为空");
+        }
+        Long appId = appDeployRequest.getAppId();
+        if(appId == null || appId <= 0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "应用 ID 不能为空");
+        }
+        // 调用服务部署应用
+        String deployUrl = appService.deployApp(appId);
+        return ResultUtils.success(deployUrl);
+    }
 
+    @GetMapping(value = "/chat/gen/code", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    Flux<String> ChatToGenCode(@RequestParam Long appId, @RequestParam String message) {
+        if(appId == null || appId <= 0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"appId不合法");
+        }
+        if(message == null){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"message不合法");
+        }
+        return appService.chatToGenCode(appId,message);
+    }
     /**
      * 创建应用
      */

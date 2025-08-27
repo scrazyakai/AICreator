@@ -44,4 +44,5 @@ public interface IUserService extends IService<User> {
      * @return
      */
     Boolean updateUser(UpdateRequest updateRequest,boolean updatePassword);
+    User getLoginUser();
 }
