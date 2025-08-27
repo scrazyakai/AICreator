@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 @Data
 public class UserInfoVO {
-
+    private Long Id;
     /**
      * 账号
      */

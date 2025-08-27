@@ -1,9 +1,8 @@
 package com.akai.aicreator.service;
 
-import com.akai.aicreator.entity.User;
+import com.akai.aicreator.model.entity.User;
 import com.akai.aicreator.model.request.UpdateRequest;
-import com.akai.aicreator.model.request.UserRegisterRequest;
-import com.akai.aicreator.model.vo.UserInfoVO;
+
 import com.baomidou.mybatisplus.extension.service.IService;
 
 /**

@@ -1,6 +1,7 @@
 package com.akai.aicreator.mapper;
 
-import com.akai.aicreator.entity.User;
+
+import com.akai.aicreator.model.entity.User;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
 /**

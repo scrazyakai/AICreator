@@ -7,13 +7,14 @@ import cn.hutool.system.UserInfo;
 import com.akai.aicreator.common.BaseResponse;
 import com.akai.aicreator.common.ErrorCode;
 import com.akai.aicreator.common.ResultUtils;
-import com.akai.aicreator.entity.User;
+import com.akai.aicreator.model.entity.User;
 import com.akai.aicreator.exception.BusinessException;
 import com.akai.aicreator.model.enums.UserRoleEnum;
 import com.akai.aicreator.model.request.*;
 import com.akai.aicreator.model.vo.UserInfoVO;
 import com.akai.aicreator.service.IUserService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import jakarta.annotation.Resource;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,6 +22,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * <p>
@@ -130,6 +134,23 @@ public class UserController {
         Long userId = StpUtil.getLoginIdAsLong();
         StpUtil.kickout(userId);
         return ResultUtils.success(success);
+    }
+    @PostMapping("/vos")
+    public BaseResponse<List<UserInfoVO>> getUsers(@RequestBody PagesQueryRequest pagesQueryRequest){
+        if(pagesQueryRequest == null){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"请求参数不能为空");
+        }
+        int cur = (pagesQueryRequest.getCur() == null || pagesQueryRequest.getCur() <= 0) ? 1 : pagesQueryRequest.getCur();
+        int size = (pagesQueryRequest.getSize() == null || pagesQueryRequest.getSize() <= 0) ? 10 : pagesQueryRequest.getSize();
+        Page<User> userPage = userService.page(new Page<>(cur,size));
+        List<UserInfoVO> voList = userPage.getRecords().stream()
+                .map(user -> {
+                    UserInfoVO vo = new UserInfoVO();
+                    BeanUtils.copyProperties(user, vo);
+                    return vo;
+                })
+                .toList();
+        return ResultUtils.success(voList);
     }
     private boolean isAdmin(){
         //获取当前用户Id
