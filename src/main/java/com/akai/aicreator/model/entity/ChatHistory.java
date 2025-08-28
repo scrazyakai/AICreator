@@ -1,6 +1,6 @@
 package com.akai.aicreator.model.entity;
 
-import com.akai.aicreator.model.enums.CodeGenTypeEnum;
+import com.akai.aicreator.model.enums.MessageTypeEnum;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,7 +12,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 应用 实体类。
+ * 对话历史 实体类。
  *
  * @author <a href="https://github.com/scrazyakai">Recursion</a>
  */
@@ -20,8 +20,8 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("app")
-public class App implements Serializable {
+@TableName("chat_history")
+public class ChatHistory implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -33,49 +33,24 @@ public class App implements Serializable {
     private Long id;
 
     /**
-     * 应用名称
+     * 消息
      */
-    private String appName;
+    private String message;
 
     /**
-     * 应用封面
+     * 消息类型（枚举）
      */
-    private String cover;
+    private MessageTypeEnum messageType;
 
     /**
-     * 应用初始化的 prompt
+     * 应用id
      */
-    private String initPrompt;
-
-    /**
-     * 代码生成类型（枚举）
-     */
-    private CodeGenTypeEnum codeGenType;
-
-    /**
-     * 部署标识
-     */
-    private String deployKey;
-
-    /**
-     * 部署时间
-     */
-    private LocalDateTime deployedTime;
-
-    /**
-     * 优先级
-     */
-    private Integer priority;
+    private Long appId;
 
     /**
      * 创建用户id
      */
     private Long userId;
-
-    /**
-     * 编辑时间
-     */
-    private LocalDateTime editTime;
 
     /**
      * 创建时间

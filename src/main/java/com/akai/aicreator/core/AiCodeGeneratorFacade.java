@@ -1,6 +1,7 @@
 package com.akai.aicreator.core;
 
 import com.akai.aicreator.ai.AiCodeGeneratorService;
+import com.akai.aicreator.ai.AiCodeGeneratorServiceFactory;
 import com.akai.aicreator.ai.model.HtmlCodeResult;
 import com.akai.aicreator.ai.model.MultiFileCodeResult;
 import com.akai.aicreator.common.ErrorCode;
@@ -24,7 +25,7 @@ import java.io.File;
 @Slf4j
 public class AiCodeGeneratorFacade {
     @Resource
-    AiCodeGeneratorService aiCodeGeneratorService;
+    AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
 
     /**
      * 统一入口，根据类型生成并保存代码
@@ -36,7 +37,9 @@ public class AiCodeGeneratorFacade {
         if(codeGenTypeEnum == null){
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "代码生成类型不能为空");
         }
-       return switch (codeGenTypeEnum){
+        //根据appId获取应用实例Id
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
+        return switch (codeGenTypeEnum){
             case HTML-> {
                 HtmlCodeResult htmlCodeResult = aiCodeGeneratorService.generateHTMLCode(userMessage);
                 yield CodeFileSaverExecutor.executeSaver(htmlCodeResult,CodeGenTypeEnum.HTML,appId);
@@ -59,6 +62,7 @@ public class AiCodeGeneratorFacade {
         if(codeGenTypeEnum == null){
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "代码生成类型不能为空");
         }
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
         return switch (codeGenTypeEnum){
             case HTML-> {
                 Flux<String> stringFlux = aiCodeGeneratorService.generateHTMLCodeStream(userMessage);

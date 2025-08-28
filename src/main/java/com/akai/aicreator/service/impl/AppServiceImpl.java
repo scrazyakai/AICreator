@@ -1,5 +1,6 @@
 package com.akai.aicreator.service.impl;
 
+import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import cn.hutool.core.util.RandomUtil;
@@ -19,6 +20,7 @@ import com.akai.aicreator.model.request.AppQueryRequest;
 import com.akai.aicreator.model.request.AppUpdateRequest;
 import com.akai.aicreator.model.vo.AppInfoVO;
 import com.akai.aicreator.service.IAppService;
+import com.akai.aicreator.service.IChatHistoryService;
 import com.akai.aicreator.service.IUserService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -45,6 +47,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
     private AiCodeGeneratorFacade aiCodeGeneratorFacade;
     @Resource
     private IUserService userService;
+    @Resource
+    private IChatHistoryService chatHistoryService;
     @Override
     public Flux<String> chatToGenCode(Long appId, String message) {
         if(appId == null || appId <= 0) {
@@ -61,12 +65,13 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         if(!loginUser.getId().equals(app.getUserId())) {
             throw new BusinessException(ErrorCode.NO_AUTH,"无权限访问该应用");
         }
-        String codeGenType = app.getCodeGenType();
-        CodeGenTypeEnum codeTypeEnum = CodeGenTypeEnum.getEnumByValue(codeGenType);
+        CodeGenTypeEnum codeGenType = app.getCodeGenType();
         if(codeGenType == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR,"应用编码生成类型不能为空");
         }
-        return aiCodeGeneratorFacade.generateAndSaveCodeStream(message,codeTypeEnum,appId);
+        long userId = StpUtil.getLoginIdAsLong();
+        chatHistoryService.saveUserMessage(appId,message,userId);
+        return aiCodeGeneratorFacade.generateAndSaveCodeStream(message, codeGenType, appId);
     }
 
     @Override
@@ -91,7 +96,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
             deployKey = RandomUtil.randomString(6);
         }
         //获取代码生成类型
-        String codeGenType = app.getCodeGenType();
+        CodeGenTypeEnum codeGenType = app.getCodeGenType();
         String sourceDirName = codeGenType + "_" + appId;
         String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator +  sourceDirName;
         //检验文件是否存在
@@ -127,7 +132,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         
         String appName = appCreateRequest.getAppName();
         String initPrompt = appCreateRequest.getInitPrompt();
-        String codeGenType = appCreateRequest.getCodeGenType();
+        CodeGenTypeEnum codeGenType = appCreateRequest.getCodeGenType();
         
         // 参数校验
         if (StrUtil.hasBlank(appName, initPrompt)) {
@@ -250,7 +255,10 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         if (!existApp.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.NO_AUTH, "无权删除该应用");
         }
-        
+
+        // 级联删除对话历史
+        chatHistoryService.deleteChatHistoryByAppId(appId);
+
         return this.removeById(appId);
     }
 
@@ -265,7 +273,10 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         if (existApp == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "应用不存在");
         }
-        
+
+        // 级联删除对话历史
+        chatHistoryService.deleteChatHistoryByAppId(appId);
+
         return this.removeById(appId);
     }
 

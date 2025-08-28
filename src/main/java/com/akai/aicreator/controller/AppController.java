@@ -1,24 +1,31 @@
 package com.akai.aicreator.controller;
 
 import cn.dev33.satoken.stp.StpUtil;
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONUtil;
 import com.akai.aicreator.common.BaseResponse;
 import com.akai.aicreator.common.ErrorCode;
 import com.akai.aicreator.common.ResultUtils;
 import com.akai.aicreator.model.entity.User;
 import com.akai.aicreator.exception.BusinessException;
+import com.akai.aicreator.model.enums.CodeGenTypeEnum;
+import com.akai.aicreator.model.enums.MessageTypeEnum;
 import com.akai.aicreator.model.enums.UserRoleEnum;
 import com.akai.aicreator.model.request.*;
 import com.akai.aicreator.model.vo.AppInfoVO;
 import com.akai.aicreator.service.IAppService;
+import com.akai.aicreator.service.IChatHistoryService;
 import com.akai.aicreator.service.IUserService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import dev.langchain4j.http.client.sse.ServerSentEvent;
+
 import jakarta.annotation.Resource;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
+
+import java.util.Map;
 
 /**
  * 应用 前端控制器
@@ -28,6 +35,8 @@ import reactor.core.publisher.Flux;
 @RestController
 @RequestMapping("/app")
 public class AppController {
+    @Resource
+    private IChatHistoryService chatHistoryService;
 
     @Resource
     private IAppService appService;
@@ -55,15 +64,43 @@ public class AppController {
     }
 
     @GetMapping(value = "/chat/gen/code", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    Flux<String> ChatToGenCode(@RequestParam Long appId, @RequestParam String message) {
-        if(appId == null || appId <= 0){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,"appId不合法");
+    public Flux<String> chatToGenCode(@RequestParam Long appId,
+                                      @RequestParam String message) {
+        // 参数校验
+        if (appId == null || appId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "应用ID无效");
         }
-        if(message == null){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,"message不合法");
+        if (StrUtil.isBlank(message)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户消息不能为空");
         }
-        return appService.chatToGenCode(appId,message);
+        // 获取当前登录用户
+        // 调用服务生成代码（流式）
+        Flux<String> contentFlux = appService.chatToGenCode(appId, message);
+        long userId = StpUtil.getLoginIdAsLong();
+        // 转换为 ServerSentEvent 格式
+        StringBuilder aiResponseBuilder = new StringBuilder();
+        return contentFlux
+                .map(chunk -> {
+                    // 收集AI响应内容
+                    aiResponseBuilder.append(chunk);
+                    return chunk;
+                })
+                .doOnComplete(() -> {
+                    // 流式响应完成后，添加AI消息到对话历史
+                    String aiResponse = aiResponseBuilder.toString();
+                    if (StrUtil.isNotBlank(aiResponse)) {
+                        chatHistoryService.saveAiMessage(appId, aiResponse, userId);
+                    }
+                })
+                .doOnError(error -> {
+                    // 如果AI回复失败，也要记录错误消息
+                    String errorMessage = "AI回复失败: " + error.getMessage();
+                    chatHistoryService.saveAiErrorMessage(appId, errorMessage, userId);
+                });
+
     }
+
+
     /**
      * 创建应用
      */

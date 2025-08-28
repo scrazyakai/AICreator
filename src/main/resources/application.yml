@@ -12,6 +12,7 @@ spring:
       database: 1
       host: localhost
       port: 6379
+      ttl: 3600
     # sa-token配置
 sa-token:
   # token名称 (同时也是cookie名称)
@@ -37,6 +38,7 @@ mybatis-plus:
       logic-delete-field: isDelete # 全局逻辑删除的实体字段名
       logic-delete-value: 1 # 逻辑已删除值
       logic-not-delete-value: 0 # 逻辑未删除值
+  type-enums-package: com.akai.aicreator.model.enums
 springdoc:
   group-configs:
     - group: 'default'
@@ -45,5 +47,23 @@ knife4j:
   enable: false
   setting:
     language: zh_cn
+# AI
+langchain4j:
+  open-ai:
+    chat-model:
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      api-key: ${API_KEY}
+      model-name: qwen-plus
+      max-tokens: 8192
+      log-requests: true
+      log-responses: true
+    streaming-chat-model:
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      api-key: ${API_KEY}
+      model-name: qwen-plus
+      max-tokens: 8192
+      log-requests: true
+      log-responses: true
+
 
 

@@ -1,5 +1,6 @@
 package com.akai.aicreator.model.request;
 
+import com.akai.aicreator.model.enums.CodeGenTypeEnum;
 import lombok.Data;
 
 /**
@@ -20,5 +21,5 @@ public class AppCreateRequest {
     /**
      * 代码生成类型（枚举）
      */
-    private String codeGenType;
+    private CodeGenTypeEnum codeGenType;
 }
