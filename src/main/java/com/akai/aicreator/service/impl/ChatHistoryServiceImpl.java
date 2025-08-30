@@ -215,8 +215,8 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         try {
             // 构造查询条件，获取最新的消息（排除第一条）
             QueryWrapper<ChatHistory> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq("app_id", appId)
-                    .orderByDesc("create_time")
+            queryWrapper.eq("appId", appId)
+                    .orderByDesc("createTime")
                     .last("LIMIT 1, " + maxCount);
 
             List<ChatHistory> historyList = this.list(queryWrapper);
