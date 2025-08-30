@@ -70,12 +70,6 @@
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
         </dependency>
-
-
-
-
-
-
         <!-- Knife4j -->
         <dependency>
             <groupId>com.github.xiaoymin</groupId>
@@ -107,10 +101,6 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-
-
-
-
         <!-- 其他工具依赖 -->
         <dependency>
             <groupId>com.mysql</groupId>

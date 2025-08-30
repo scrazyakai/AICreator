@@ -9,6 +9,7 @@ import com.akai.aicreator.ai.AiCodeGeneratorService;
 import com.akai.aicreator.common.ErrorCode;
 import com.akai.aicreator.constant.AppConstant;
 import com.akai.aicreator.core.AiCodeGeneratorFacade;
+import com.akai.aicreator.core.handler.StreamHandlerExecutor;
 import com.akai.aicreator.exception.BusinessException;
 import com.akai.aicreator.mapper.AppMapper;
 import com.akai.aicreator.model.entity.App;
@@ -49,6 +50,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
     private IUserService userService;
     @Resource
     private IChatHistoryService chatHistoryService;
+    @Resource
+    private StreamHandlerExecutor streamHandlerExecutor;
+
     @Override
     public Flux<String> chatToGenCode(Long appId, String message) {
         if(appId == null || appId <= 0) {
@@ -71,7 +75,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         }
         long userId = StpUtil.getLoginIdAsLong();
         chatHistoryService.saveUserMessage(appId,message,userId);
-        return aiCodeGeneratorFacade.generateAndSaveCodeStream(message, codeGenType, appId);
+        Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, codeGenType, appId);
+        return streamHandlerExecutor.doExecute(codeStream,chatHistoryService,appId,codeGenType);
     }
 
     @Override
@@ -132,7 +137,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         
         String appName = appCreateRequest.getAppName();
         String initPrompt = appCreateRequest.getInitPrompt();
-        CodeGenTypeEnum codeGenType = appCreateRequest.getCodeGenType();
+        CodeGenTypeEnum codeGenType = CodeGenTypeEnum.VUE_PROJECT;
+        //CodeGenTypeEnum codeGenType = appCreateRequest.getCodeGenType();
         
         // 参数校验
         if (StrUtil.hasBlank(appName, initPrompt)) {
