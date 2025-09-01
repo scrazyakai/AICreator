@@ -9,6 +9,7 @@ import com.akai.aicreator.ai.AiCodeGeneratorService;
 import com.akai.aicreator.common.ErrorCode;
 import com.akai.aicreator.constant.AppConstant;
 import com.akai.aicreator.core.AiCodeGeneratorFacade;
+import com.akai.aicreator.core.builer.VueProjectBuilder;
 import com.akai.aicreator.core.handler.StreamHandlerExecutor;
 import com.akai.aicreator.exception.BusinessException;
 import com.akai.aicreator.mapper.AppMapper;
@@ -23,11 +24,13 @@ import com.akai.aicreator.model.vo.AppInfoVO;
 import com.akai.aicreator.service.IAppService;
 import com.akai.aicreator.service.IChatHistoryService;
 import com.akai.aicreator.service.IUserService;
+import com.akai.aicreator.service.ScreenshotService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import io.netty.util.internal.ThrowableUtil;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -43,6 +46,7 @@ import java.util.stream.Collectors;
  * @author <a href="https://github.com/scrazyakai">Recursion</a>
  */
 @Service
+@Slf4j
 public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppService {
     @Resource
     private AiCodeGeneratorFacade aiCodeGeneratorFacade;
@@ -52,7 +56,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
     private IChatHistoryService chatHistoryService;
     @Resource
     private StreamHandlerExecutor streamHandlerExecutor;
-
+    @Resource
+    private VueProjectBuilder vueProjectBuilder;
     @Override
     public Flux<String> chatToGenCode(Long appId, String message) {
         if(appId == null || appId <= 0) {
@@ -110,12 +115,32 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
             throw new BusinessException(ErrorCode.SYSTEM_ERROR,"代码文件不存在,请先生成代码");
         }
         //复制文件到部署目录
+        //检验Vue项目
+        if(codeGenType == CodeGenTypeEnum.VUE_PROJECT){
+            //构建vue项目
+            boolean buildSuccess = vueProjectBuilder.buildProject(sourceDirPath);
+            if(!buildSuccess){
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR,"构建Vue项目失败");
+            }
+            File distDir = new File(sourceDirPath ,"dist");
+            if(!distDir.exists()){
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR,"构建Vue项目成功，但未生成dist打包文件");
+            }
+            sourceDir = distDir;
+            log.info("Vue项目构建成功,将部署在:{}",distDir.getAbsolutePath());
+        }
         String deployDirPath = AppConstant.CODE_DEPLOY_ROOT_DIR + File.separator +  deployKey;
+//        if(FileUtil.exist(deployDirPath)){
+//            return String.format("%s/%s/", AppConstant.CODE_DEPLOY_HOST, deployKey);
+//        }
+        //复制文件到部署文件夹中
         try {
             FileUtil.copyContent(sourceDir, new File(deployDirPath), true);
         } catch (IORuntimeException e) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR,"代码部署失败" + e);
         }
+        String deployURL = String.format("%s/%s/", AppConstant.CODE_DEPLOY_HOST, deployKey);
+        generateAppScreenshotAsync(appId,deployURL);
         //更新应用的developKey和部署时间
         App updateApp = new App();
         updateApp.setId(appId);
@@ -125,9 +150,37 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         if(!updateResult) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR,"更新应用信息失败");
         }
+
+
         //返回部署信息
         return String.format("%s/%s/", AppConstant.CODE_DEPLOY_HOST, deployKey);
     }
+    @Resource
+    private ScreenshotService screenshotService;
+
+    /**
+     * 异步生成应用截图并更新封面
+     *
+     * @param appId  应用ID
+     * @param appUrl 应用访问URL
+     */
+    @Override
+    public void generateAppScreenshotAsync(Long appId, String appUrl) {
+        // 使用虚拟线程异步执行
+        Thread.startVirtualThread(() -> {
+            // 调用截图服务生成截图并上传
+            String screenshotUrl = screenshotService.generateScreenshotAndUpload(appUrl);
+            // 更新应用封面字段
+            App updateApp = new App();
+            updateApp.setId(appId);
+            updateApp.setCover(screenshotUrl);
+            boolean updated = this.updateById(updateApp);
+            if(!updated) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR,"更新应用封面失败");
+            }
+        });
+    }
+
 
     @Override
     public Long createApp(AppCreateRequest appCreateRequest, Long userId) {

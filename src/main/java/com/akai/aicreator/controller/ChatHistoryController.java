@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
  * @author <a href="https://github.com/scrazyakai">Recursion</a>
  */
 @RestController
-@RequestMapping("/chat-history")
+@RequestMapping("/chatHistory")
 public class ChatHistoryController {
 
     @Resource

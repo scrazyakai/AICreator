@@ -6,7 +6,10 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.akai.aicreator.ai.model.message.*;
+import com.akai.aicreator.constant.AppConstant;
+import com.akai.aicreator.core.builer.VueProjectBuilder;
 import com.akai.aicreator.service.IChatHistoryService;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -21,6 +24,8 @@ import java.util.Set;
 @Slf4j
 @Component
 public class JsonMessageStreamHandler {
+    @Resource
+    private VueProjectBuilder vueProjectBuilder;
 
     /**
      * 处理 TokenStream（VUE_PROJECT）
@@ -54,6 +59,8 @@ public class JsonMessageStreamHandler {
                     // 如果AI回复失败，也要记录错误消息
                     String errorMessage = "AI回复失败: " + error.getMessage();
                     chatHistoryService.saveAiErrorMessage(appId, errorMessage, userId);
+                    String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + "vue_project" + appId;
+                    vueProjectBuilder.buildProjectAsync(projectPath);
                 });
     }
 

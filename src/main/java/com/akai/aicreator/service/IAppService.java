@@ -92,7 +92,30 @@ public interface IAppService extends IService<App> {
      * @return 分页结果
      */
     Page<AppInfoVO> pageAppsForAdmin(AppQueryRequest appQueryRequest);
+
+    /**
+     * 根据应用ID和用户消息生成代码的响应式方法
+     *
+     * @param appId 应用程序的唯一标识符
+     * @param message 用户输入的消息内容
+     * @return 返回一个包含生成代码的Flux流，Flux是ReactiveX中的响应式流，可以异步返回多个结果
+ */
     Flux<String> chatToGenCode(Long appId, String message);
+
+    /**
+     * 部署应用程序的方法
+     *
+     * @param appId 应用程序的唯一标识符ID
+     * @return 返回一个String类型的值，可能是部署结果或相关信息
+     */
     String deployApp(Long appId);
+
+    /**
+     * 异步生成应用截图的方法
+     *
+     * @param appId 应用的唯一标识符ID
+     * @param appUrl 应用的URL地址，用于获取应用内容
+     */
+    public void generateAppScreenshotAsync(Long appId, String appUrl);
 
 }

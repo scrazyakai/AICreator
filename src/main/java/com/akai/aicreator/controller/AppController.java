@@ -97,7 +97,6 @@ public class AppController {
                     String errorMessage = "AI回复失败: " + error.getMessage();
                     chatHistoryService.saveAiErrorMessage(appId, errorMessage, userId);
                 });
-
     }
 
 
