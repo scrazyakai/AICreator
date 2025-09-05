@@ -1,6 +1,6 @@
 package com.akai.aicreator.ai;
 
-import com.akai.aicreator.ai.tools.FileWriteTool;
+import com.akai.aicreator.ai.tools.*;
 import com.akai.aicreator.config.ReasoningStreamingChatModelConfig;
 import com.akai.aicreator.model.enums.CodeGenTypeEnum;
 import com.akai.aicreator.service.IChatHistoryService;
@@ -34,6 +34,8 @@ public class AiCodeGeneratorServiceFactory {
     private IChatHistoryService chatHistoryService;
     @Resource
     private StreamingChatModel reasoningStreamingChatModel;
+    @Resource
+    private ToolManager toolManager;
     /**
      * 根据 appId 获取服务（为了兼容老逻辑）
      *
@@ -94,7 +96,7 @@ public class AiCodeGeneratorServiceFactory {
                    .chatModel(chatModel)
                    .streamingChatModel(reasoningStreamingChatModel)
                    .chatMemoryProvider(memoryId -> chatMemory)
-                   .tools(new FileWriteTool())
+                   .tools(toolManager.getAllTools())
                    //解决未找到工具出现的问题
                    .hallucinatedToolNameStrategy(toolExecutionRequest ->
                        ToolExecutionResultMessage.from(toolExecutionRequest,

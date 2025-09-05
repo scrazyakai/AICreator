@@ -6,6 +6,7 @@ import cn.hutool.json.JSONUtil;
 import com.akai.aicreator.common.BaseResponse;
 import com.akai.aicreator.common.ErrorCode;
 import com.akai.aicreator.common.ResultUtils;
+import com.akai.aicreator.constant.AppConstant;
 import com.akai.aicreator.model.entity.User;
 import com.akai.aicreator.exception.BusinessException;
 import com.akai.aicreator.model.enums.CodeGenTypeEnum;
@@ -16,15 +17,19 @@ import com.akai.aicreator.model.vo.AppInfoVO;
 import com.akai.aicreator.service.IAppService;
 import com.akai.aicreator.service.IChatHistoryService;
 import com.akai.aicreator.service.IUserService;
+import com.akai.aicreator.service.ProjectDownloadService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import java.io.File;
 import java.util.Map;
 
 /**
@@ -33,6 +38,7 @@ import java.util.Map;
  * @author <a href="https://github.com/scrazyakai">Recursion</a>
  */
 @RestController
+@Slf4j
 @RequestMapping("/app")
 public class AppController {
     @Resource
@@ -43,6 +49,8 @@ public class AppController {
 
     @Resource
     private IUserService userService;
+    @Resource
+    private ProjectDownloadService projectDownloadService;
     /**
      * 应用部署
      *
@@ -74,29 +82,11 @@ public class AppController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户消息不能为空");
         }
         // 获取当前登录用户
-        // 调用服务生成代码（流式）
-        Flux<String> contentFlux = appService.chatToGenCode(appId, message);
         long userId = StpUtil.getLoginIdAsLong();
-        // 转换为 ServerSentEvent 格式
-        StringBuilder aiResponseBuilder = new StringBuilder();
-        return contentFlux
-                .map(chunk -> {
-                    // 收集AI响应内容
-                    aiResponseBuilder.append(chunk);
-                    return chunk;
-                })
-                .doOnComplete(() -> {
-                    // 流式响应完成后，添加AI消息到对话历史
-                    String aiResponse = aiResponseBuilder.toString();
-                    if (StrUtil.isNotBlank(aiResponse)) {
-                        chatHistoryService.saveAiMessage(appId, aiResponse, userId);
-                    }
-                })
-                .doOnError(error -> {
-                    // 如果AI回复失败，也要记录错误消息
-                    String errorMessage = "AI回复失败: " + error.getMessage();
-                    chatHistoryService.saveAiErrorMessage(appId, errorMessage, userId);
-                });
+        chatHistoryService.saveUserMessage(appId, message,userId);
+        // 调用服务生成代码（流式）
+        // 由下游的 StreamHandler 保存聊天记录，这里直接返回
+        return appService.chatToGenCode(appId, message);
     }
 
 
@@ -108,7 +98,6 @@ public class AppController {
         if (appCreateRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数不能为空");
         }
-        
         Long userId = StpUtil.getLoginIdAsLong();
         Long appId = appService.createApp(appCreateRequest, userId);
         return ResultUtils.success(appId);
@@ -251,20 +240,41 @@ public class AppController {
         AppInfoVO appInfoVO = appService.getAppByIdForAdmin(id);
         return ResultUtils.success(appInfoVO);
     }
-
-    /**
-     * 判断是否为管理员
-     */
-    private boolean isAdmin() {
-        Long userId = StpUtil.getLoginIdAsLong();
-        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("id", userId);
-        User user = userService.getOne(queryWrapper);
-        if (user == null) {
-            return false;
+    @GetMapping("/download/{appId}")
+    public void downloadProject(@PathVariable Long appId, HttpServletResponse response) {
+        if (appId == null || appId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "应用ID不能为空");
         }
+        AppInfoVO app = appService.getAppById(appId);
+        if (!isAdmin()) {
+            log.info("无权下载源码");
+            throw new BusinessException(ErrorCode.NO_AUTH, "无权下载源码");
+        }
+        String codeGenType = app.getCodeGenType();
+        //目录名
+        String sourceDirName = codeGenType + "_" + appId;
+        //路径名
+        String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
+        File sourceDir = new File(sourceDirPath);
+        //检查目录是否存在
+        if(!sourceDir.exists() || !sourceDir.isDirectory() ){
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "请先生成代码");
+        }
+        String downloadName = codeGenType + "_"+appId;
+        projectDownloadService.downloadProjectAsZIP(sourceDirPath, downloadName, response);
+
+    }
+    private boolean isAdmin(){
+        //获取当前用户Id
+        Long userId = StpUtil.getLoginIdAsLong();
+        //判断是否为管理员
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("id",userId);
+        User user = userService.getOne(queryWrapper);
         String userRole = user.getUserRole();
         return userRole.equals(UserRoleEnum.ADMIN.getValue());
     }
+
+
 
 }

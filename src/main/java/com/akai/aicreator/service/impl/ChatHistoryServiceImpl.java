@@ -167,15 +167,15 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "用户不存在");
         }
 
-        boolean isAdmin = "管理员".equals(currentUser.getUserRole()) || "admin".equals(currentUser.getUserRole());
-        if (!isAdmin && !app.getUserId().equals(currentUserId)) {
-            throw new BusinessException(ErrorCode.NO_AUTH, "无权查看该应用的对话历史");
-        }
+//        boolean isAdmin = "管理员".equals(currentUser.getUserRole()) || "admin".equals(currentUser.getUserRole());
+//        if (!isAdmin && !app.getUserId().equals(currentUserId)) {
+//            throw new BusinessException(ErrorCode.NO_AUTH, "无权查看该应用的对话历史");
+//        }
 
         // 查询最新10条记录
         ChatHistoryQueryRequest chatHistoryQueryRequest = new ChatHistoryQueryRequest();
         chatHistoryQueryRequest.setAppId(appId);
-        chatHistoryQueryRequest.setUserId(currentUserId);
+//        chatHistoryQueryRequest.setUserId(currentUserId);
         chatHistoryQueryRequest.setLastCreateTime(lastCreateTime);
         QueryWrapper<ChatHistory> queryWrapper = this.buildQueryWrapper(chatHistoryQueryRequest);
         return this.page(new Page<>(1, pageSize, false), queryWrapper);
@@ -188,12 +188,13 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "应用ID不能为空");
         }
 
-        UpdateWrapper<ChatHistory> updateWrapper = new UpdateWrapper<>();
-        updateWrapper.eq("appId", appId);
-        updateWrapper.set("isDelete", 1);
-        updateWrapper.set("updateTime", LocalDateTime.now());
-
-        return this.update(updateWrapper);
+        QueryWrapper<ChatHistory> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("appId", appId);
+        boolean remove = this.remove(queryWrapper);
+        if(!remove){
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除失败");
+        }
+        return remove;
     }
 
     @Override

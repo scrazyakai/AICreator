@@ -5,6 +5,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
+import com.akai.aicreator.ai.AiCodeGenTypeRoutingService;
 import com.akai.aicreator.ai.AiCodeGeneratorService;
 import com.akai.aicreator.common.ErrorCode;
 import com.akai.aicreator.constant.AppConstant;
@@ -58,6 +59,11 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
     private StreamHandlerExecutor streamHandlerExecutor;
     @Resource
     private VueProjectBuilder vueProjectBuilder;
+    @Resource
+    private AiCodeGeneratorService aiCodeGeneratorService;
+    @Resource
+    private AiCodeGenTypeRoutingService aiCodeGenTypeRoutingService;
+
     @Override
     public Flux<String> chatToGenCode(Long appId, String message) {
         if(appId == null || appId <= 0) {
@@ -79,7 +85,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
             throw new BusinessException(ErrorCode.PARAMS_ERROR,"应用编码生成类型不能为空");
         }
         long userId = StpUtil.getLoginIdAsLong();
-        chatHistoryService.saveUserMessage(appId,message,userId);
+//        chatHistoryService.saveUserMessage(appId,message,userId);
         Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, codeGenType, appId);
         return streamHandlerExecutor.doExecute(codeStream,chatHistoryService,appId,codeGenType);
     }
@@ -130,9 +136,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
             log.info("Vue项目构建成功,将部署在:{}",distDir.getAbsolutePath());
         }
         String deployDirPath = AppConstant.CODE_DEPLOY_ROOT_DIR + File.separator +  deployKey;
-//        if(FileUtil.exist(deployDirPath)){
-//            return String.format("%s/%s/", AppConstant.CODE_DEPLOY_HOST, deployKey);
-//        }
+
         //复制文件到部署文件夹中
         try {
             FileUtil.copyContent(sourceDir, new File(deployDirPath), true);
@@ -150,8 +154,6 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         if(!updateResult) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR,"更新应用信息失败");
         }
-
-
         //返回部署信息
         return String.format("%s/%s/", AppConstant.CODE_DEPLOY_HOST, deployKey);
     }
@@ -187,12 +189,12 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         if (appCreateRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数不能为空");
         }
-        
-        String appName = appCreateRequest.getAppName();
+
         String initPrompt = appCreateRequest.getInitPrompt();
-        CodeGenTypeEnum codeGenType = CodeGenTypeEnum.VUE_PROJECT;
+        appCreateRequest.setAppName(initPrompt.substring(0,5));
+        String appName = appCreateRequest.getAppName();
         //CodeGenTypeEnum codeGenType = appCreateRequest.getCodeGenType();
-        
+
         // 参数校验
         if (StrUtil.hasBlank(appName, initPrompt)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "应用名称和初始化Prompt不能为空");
@@ -201,6 +203,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         if (appName.length() > 50) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "应用名称不能超过50个字符");
         }
+        CodeGenTypeEnum codeGenType = aiCodeGenTypeRoutingService.routeCodeGenType(initPrompt);
         
         // 创建应用
         App app = App.builder()
@@ -217,7 +220,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         if (!result) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "创建应用失败");
         }
-        
+        log.info("应用创建成功，类型为: {}", codeGenType.getValue());
         return app.getId();
     }
 
@@ -332,11 +335,28 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         if (existApp == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "应用不存在");
         }
-
         // 级联删除对话历史
         chatHistoryService.deleteChatHistoryByAppId(appId);
-
+        if(existApp.getDeployKey() != null){
+            deleteFiles(appId,existApp.getDeployKey(),existApp.getCodeGenType());
+        }
         return this.removeById(appId);
+    }
+    private void deleteFiles(long appId,String deployKey,CodeGenTypeEnum codeGenType){
+        //部署路径
+        String developPath = AppConstant.CODE_DEPLOY_ROOT_DIR + File.separator + deployKey;
+        File file = new File(developPath);
+        //删除部署文件
+        if(file.exists()){
+            FileUtil.del(file);
+        }
+        //生成文件路径
+        String codeGenPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + codeGenType.getValue() + "_" + appId;
+        File codeGenFile = new File(codeGenPath);
+        if(codeGenFile.exists()){
+            FileUtil.del(codeGenFile);
+        }
+
     }
 
     @Override
@@ -352,6 +372,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         
         AppInfoVO appInfoVO = new AppInfoVO();
         BeanUtils.copyProperties(app, appInfoVO);
+        if(app.getCodeGenType()!=null){
+            appInfoVO.setCodeGenType(app.getCodeGenType().getValue());
+        }
         return appInfoVO;
     }
 
@@ -426,6 +449,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
                 .map(app -> {
                     AppInfoVO appInfoVO = new AppInfoVO();
                     BeanUtils.copyProperties(app, appInfoVO);
+                    if (app.getCodeGenType() != null) {
+                        appInfoVO.setCodeGenType(app.getCodeGenType().getValue());
+                    }
                     return appInfoVO;
                 })
                 .collect(Collectors.toList());
