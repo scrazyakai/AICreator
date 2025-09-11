@@ -11,6 +11,8 @@ import com.akai.aicreator.ai.tools.ToolManager;
 import com.akai.aicreator.constant.AppConstant;
 import com.akai.aicreator.core.builer.VueProjectBuilder;
 import com.akai.aicreator.service.IChatHistoryService;
+import com.akai.aicreator.service.TokenUsageService;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -30,6 +32,8 @@ public class JsonMessageStreamHandler {
     private VueProjectBuilder vueProjectBuilder;
     @Resource
     private ToolManager toolManager;
+    @Resource
+    private TokenUsageService tokenUsageService;
     /**
      * 处理 TokenStream（VUE_PROJECT）
      * 解析 JSON 消息并重组为完整的响应格式
@@ -47,16 +51,30 @@ public class JsonMessageStreamHandler {
         StringBuilder chatHistoryStringBuilder = new StringBuilder();
         // 用于跟踪已经见过的工具ID，判断是否是第一次调用
         Set<String> seenToolIds = new HashSet<>();
+        ChatResponse[] chatResponseRef = new ChatResponse[1];
         return originFlux
                 .map(chunk -> {
                     // 解析每个 JSON 消息块
-                    return handleJsonMessageChunk(chunk, chatHistoryStringBuilder, seenToolIds);
+                    return handleJsonMessageChunk(chunk, chatHistoryStringBuilder, seenToolIds,chatResponseRef);
+
                 })
                 .filter(StrUtil::isNotEmpty) // 过滤空字串
                 .doOnComplete(() -> {
                     // 流式响应完成后，添加 AI 消息到对话历史
                     String aiResponse = chatHistoryStringBuilder.toString();
                     chatHistoryService.saveAiMessage(appId, aiResponse, userId);
+                    if (chatResponseRef[0] != null) {
+                        try {
+                            boolean success = tokenUsageService.processTokenUsageAndDeductPoints(userId, chatResponseRef[0]);
+                            if (success) {
+                                log.info("用户ID: {} AI调用完成，积分扣减成功", userId);
+                            } else {
+                                log.warn("用户ID: {} AI调用完成，但积分扣减失败", userId);
+                            }
+                        } catch (Exception e) {
+                            log.error("用户ID: {} AI调用完成，积分扣减异常: {}", userId, e.getMessage(), e);
+                        }
+                    }
                 })
                 .doOnError(error -> {
                     // 如果AI回复失败，也要记录错误消息
@@ -64,13 +82,14 @@ public class JsonMessageStreamHandler {
                     chatHistoryService.saveAiErrorMessage(appId, errorMessage, userId);
                     String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + "vue_project" + appId;
                     vueProjectBuilder.buildProjectAsync(projectPath);
+                    log.warn("用户ID: {} AI调用失败，不扣减积分", userId);
                 });
     }
 
     /**
      * 解析并收集 TokenStream 数据
      */
-    private String handleJsonMessageChunk(String chunk, StringBuilder chatHistoryStringBuilder, Set<String> seenToolIds) {
+    private String handleJsonMessageChunk(String chunk, StringBuilder chatHistoryStringBuilder, Set<String> seenToolIds,ChatResponse[] chatResponseRef) {
         // 解析 JSON
         StreamMessage streamMessage = JSONUtil.toBean(chunk, StreamMessage.class);
         StreamMessageTypeEnum typeEnum = StreamMessageTypeEnum.getEnumByValue(streamMessage.getType());
@@ -110,6 +129,13 @@ public class JsonMessageStreamHandler {
                 String output = String.format("\n\n%s\n\n", result);
                 chatHistoryStringBuilder.append(output);
                 return output;
+            }
+            case CHAT_RESPONSE -> {
+                // 处理ChatResponse，用于积分扣减
+                ChatResponseMessage chatResponseMessage = JSONUtil.toBean(chunk, ChatResponseMessage.class);
+                chatResponseRef[0] = chatResponseMessage.getChatResponse();
+                // 不向前端返回任何内容，这是内部处理消息
+                return "";
             }
             default -> {
                 log.error("不支持的消息类型: {}", typeEnum);

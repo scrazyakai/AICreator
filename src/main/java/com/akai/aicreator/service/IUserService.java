@@ -22,6 +22,14 @@ public interface IUserService extends IService<User> {
      * @return
      */
     long userRegister(String account,String password,String checkPassword);
+    /**
+     * 用户注册支持邀请码
+     * @param account
+     * @param password
+     * @param checkPassword
+     * @return
+     */
+    long userRegister(String account,String password,String checkPassword,String inviteCode);
 
     /**
      * 对密码加密

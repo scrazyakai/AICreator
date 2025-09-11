@@ -12,11 +12,14 @@ import com.akai.aicreator.model.request.UpdateRequest;
 import com.akai.aicreator.model.request.UserRegisterRequest;
 import com.akai.aicreator.model.vo.UserInfoVO;
 import com.akai.aicreator.service.IUserService;
+import com.akai.aicreator.service.UserPointsMessageProducer;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import jakarta.annotation.Resource;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -32,14 +35,21 @@ import java.util.regex.Pattern;
  */
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
+    @Resource
+    private UserPointsMessageProducer userPointsMessageProducer;
     @Override
     public User getLoginUser() {
         long userId = StpUtil.getLoginIdAsLong();
         return getById(userId);
     }
-
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public long userRegister(String account,String password,String checkPassword) {
+        return userRegister(account,password,checkPassword,null);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public long userRegister(String account,String password,String checkPassword,String inviteCode) {
         //校验
         if(StrUtil.hasBlank(account,password,checkPassword)){
             throw new BusinessException(ErrorCode.PARAMS_ERROR,"参数为空");
@@ -77,6 +87,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         boolean save = this.save(user);
         if(!save){
             throw new BusinessException(ErrorCode.SYSTEM_ERROR,"创建用户失败");
+        }
+        try {
+            userPointsMessageProducer.sendUserPointsInitMessage(user.getId(), inviteCode);
+        } catch (Exception e) {
+            System.err.println("发送用户积分初始化消息失败: " + e.getMessage());
         }
         return user.getId();
     }

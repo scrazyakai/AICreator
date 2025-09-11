@@ -1,10 +1,10 @@
 package com.akai.aicreator.core.handler;
 
-import cn.dev33.satoken.stp.StpUtil;
 import com.akai.aicreator.model.enums.CodeGenTypeEnum;
 import com.akai.aicreator.service.IChatHistoryService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
@@ -20,6 +20,10 @@ public class StreamHandlerExecutor {
 
     @Resource
     private JsonMessageStreamHandler jsonMessageStreamHandler;
+    
+    @Resource
+    @Lazy
+    private SimpleTextStreamHandler simpleTextStreamHandler;
 
     /**
      * 创建流处理器并处理聊天历史记录
@@ -36,8 +40,8 @@ public class StreamHandlerExecutor {
         return switch (codeGenType) {
             case VUE_PROJECT -> // 使用注入的组件实例
                     jsonMessageStreamHandler.handle(originFlux, chatHistoryService, appId);
-            case HTML, MULTI_FILE -> // 简单文本处理器不需要依赖注入
-                    new SimpleTextStreamHandler().handle(originFlux, chatHistoryService, appId);
+            case HTML, MULTI_FILE -> // 使用注入的组件实例
+                    simpleTextStreamHandler.handle(originFlux, chatHistoryService, appId);
         };
     }
 }

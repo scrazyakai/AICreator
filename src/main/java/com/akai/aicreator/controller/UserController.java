@@ -47,7 +47,8 @@ public class UserController {
         String userAccount = userRegisterRequest.getUserAccount();
         String password = userRegisterRequest.getPassword();
         String checkPassword = userRegisterRequest.getCheckPassword();
-        long userId = userService.userRegister(userAccount, password, checkPassword);
+        String inviteCode = userRegisterRequest.getInviteCode();
+        long userId = userService.userRegister(userAccount,password,checkPassword,inviteCode);
         return ResultUtils.success(userId);
     }
     @PostMapping("/login")

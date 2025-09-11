@@ -6,6 +6,7 @@ import com.akai.aicreator.ai.AiCodeGeneratorServiceFactory;
 import com.akai.aicreator.ai.model.HtmlCodeResult;
 import com.akai.aicreator.ai.model.MultiFileCodeResult;
 import com.akai.aicreator.ai.model.message.AiResponseMessage;
+import com.akai.aicreator.ai.model.message.ChatResponseMessage;
 import com.akai.aicreator.ai.model.message.ToolExecutedMessage;
 import com.akai.aicreator.ai.model.message.ToolRequestMessage;
 import com.akai.aicreator.common.ErrorCode;
@@ -122,6 +123,8 @@ public class AiCodeGeneratorFacade {
                         sink.next(JSONUtil.toJsonStr(toolExecutedMessage));
                     })
                     .onCompleteResponse((ChatResponse response) -> {
+                        ChatResponseMessage chatResponseMessage = new ChatResponseMessage(response);
+                        sink.next(JSONUtil.toJsonStr(chatResponseMessage));
                         sink.complete();
                     })
                     .onError((Throwable error) -> {

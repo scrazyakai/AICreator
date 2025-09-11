@@ -22,10 +22,8 @@ import com.akai.aicreator.model.request.AppCreateRequest;
 import com.akai.aicreator.model.request.AppQueryRequest;
 import com.akai.aicreator.model.request.AppUpdateRequest;
 import com.akai.aicreator.model.vo.AppInfoVO;
-import com.akai.aicreator.service.IAppService;
-import com.akai.aicreator.service.IChatHistoryService;
-import com.akai.aicreator.service.IUserService;
-import com.akai.aicreator.service.ScreenshotService;
+import com.akai.aicreator.service.*;
+import com.akai.aicreator.utils.TokenCalUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -63,6 +61,10 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
     private AiCodeGeneratorService aiCodeGeneratorService;
     @Resource
     private AiCodeGenTypeRoutingService aiCodeGenTypeRoutingService;
+    @Resource
+    private IPointsService pointsService;
+    @Resource
+    private TokenCalUtil tokenCalUtil;
 
     @Override
     public Flux<String> chatToGenCode(Long appId, String message) {
@@ -85,7 +87,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
             throw new BusinessException(ErrorCode.PARAMS_ERROR,"应用编码生成类型不能为空");
         }
         long userId = StpUtil.getLoginIdAsLong();
-//        chatHistoryService.saveUserMessage(appId,message,userId);
+
         Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, codeGenType, appId);
         return streamHandlerExecutor.doExecute(codeStream,chatHistoryService,appId,codeGenType);
     }
