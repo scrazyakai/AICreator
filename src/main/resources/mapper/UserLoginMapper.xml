@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.akai.aicreator.mapper.UserLoginMapper">
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, userId, signDate, createTime
+    </sql>
+
+    <!-- 获取用户连续登录天数 -->
+    <select id="getConsecutiveLoginDays" resultType="java.lang.Integer">
+        WITH RECURSIVE consecutive_days AS (
+            -- 基础情况：从今天开始，如果今天有登录记录则连续天数为1，否则为0
+            SELECT 
+                CASE 
+                    WHEN EXISTS (SELECT 1 FROM user_login WHERE userId = #{userId} AND signDate = CURDATE()) 
+                    THEN 1 
+                    ELSE 0 
+                END as consecutive_count,
+                CURDATE() as check_date
+            
+            UNION ALL
+            
+            -- 递归情况：向前一天检查
+            SELECT 
+                CASE 
+                    WHEN EXISTS (SELECT 1 FROM user_login WHERE userId = #{userId} AND signDate = check_date - INTERVAL 1 DAY)
+                    THEN consecutive_count + 1
+                    ELSE consecutive_count
+                END,
+                check_date - INTERVAL 1 DAY
+            FROM consecutive_days
+            WHERE consecutive_count > 0 
+            AND check_date > DATE_SUB(CURDATE(), INTERVAL 365 DAY) -- 最多向前查找365天
+        )
+        SELECT MAX(consecutive_count) as consecutive_days
+        FROM consecutive_days
+        WHERE consecutive_count > 0
+    </select>
+
+</mapper>
