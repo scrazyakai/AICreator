@@ -6,17 +6,19 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.stereotype.Service;
 
 @Slf4j
 @Configuration
 public class AiCodeGenTypeRoutingServiceFactory {
-    @Resource
-    private ChatModel chatModel;
+    
+    // 直接注入需要的 ChatModel
+    @Resource(name = "routingChatModelPrototype")
+    private ChatModel routingChatModelPrototype;
+    
     @Bean
     public AiCodeGenTypeRoutingService aiCodeGenTypeRoutingService(){
         return AiServices.builder(AiCodeGenTypeRoutingService.class)
-                .chatModel(chatModel)
+                .chatModel(routingChatModelPrototype)
                 .build();
     }
 }

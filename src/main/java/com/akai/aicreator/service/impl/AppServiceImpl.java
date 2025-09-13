@@ -6,6 +6,7 @@ import cn.hutool.core.io.IORuntimeException;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import com.akai.aicreator.ai.AiCodeGenTypeRoutingService;
+import com.akai.aicreator.ai.AiCodeGenTypeRoutingServiceFactory;
 import com.akai.aicreator.ai.AiCodeGeneratorService;
 import com.akai.aicreator.common.ErrorCode;
 import com.akai.aicreator.constant.AppConstant;
@@ -58,13 +59,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
     @Resource
     private VueProjectBuilder vueProjectBuilder;
     @Resource
-    private AiCodeGeneratorService aiCodeGeneratorService;
-    @Resource
     private AiCodeGenTypeRoutingService aiCodeGenTypeRoutingService;
     @Resource
-    private IPointsService pointsService;
-    @Resource
-    private TokenCalUtil tokenCalUtil;
+    private AiCodeGenTypeRoutingServiceFactory aiCodeGenTypeRoutingServiceFactory;
 
     @Override
     public Flux<String> chatToGenCode(Long appId, String message) {
@@ -195,8 +192,6 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         String initPrompt = appCreateRequest.getInitPrompt();
         appCreateRequest.setAppName(initPrompt.substring(0,5));
         String appName = appCreateRequest.getAppName();
-        //CodeGenTypeEnum codeGenType = appCreateRequest.getCodeGenType();
-
         // 参数校验
         if (StrUtil.hasBlank(appName, initPrompt)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "应用名称和初始化Prompt不能为空");
@@ -205,6 +200,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         if (appName.length() > 50) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "应用名称不能超过50个字符");
         }
+        //AiCodeGenTypeRoutingService aiCodeGenTypeRoutingService = aiCodeGenTypeRoutingServiceFactory.createAiCodeGenTypeRoutingService();
         CodeGenTypeEnum codeGenType = aiCodeGenTypeRoutingService.routeCodeGenType(initPrompt);
         
         // 创建应用
@@ -374,6 +370,16 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
         
         AppInfoVO appInfoVO = new AppInfoVO();
         BeanUtils.copyProperties(app, appInfoVO);
+        
+        // 获取用户信息
+        User user = userService.getById(app.getUserId());
+        if (user != null) {
+            appInfoVO.setUserName(user.getUserName());
+        } else {
+            log.warn("用户ID: {} 不存在，应用ID: {}", app.getUserId(), appId);
+            appInfoVO.setUserName("未知用户");
+        }
+        
         if(app.getCodeGenType()!=null){
             appInfoVO.setCodeGenType(app.getCodeGenType().getValue());
         }
@@ -414,6 +420,20 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
                 .map(app -> {
                     AppInfoVO appInfoVO = new AppInfoVO();
                     BeanUtils.copyProperties(app, appInfoVO);
+                    
+                    // 设置用户名称
+                    User user = userService.getById(app.getUserId());
+                    if (user != null) {
+                        appInfoVO.setUserName(user.getUserName());
+                    } else {
+                        appInfoVO.setUserName("未知用户");
+                    }
+                    
+                    // 设置代码生成类型
+                    if (app.getCodeGenType() != null) {
+                        appInfoVO.setCodeGenType(app.getCodeGenType().getValue());
+                    }
+                    
                     return appInfoVO;
                 })
                 .collect(Collectors.toList());
@@ -451,6 +471,15 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
                 .map(app -> {
                     AppInfoVO appInfoVO = new AppInfoVO();
                     BeanUtils.copyProperties(app, appInfoVO);
+                    
+                    // 设置用户名称
+                    User user = userService.getById(app.getUserId());
+                    if (user != null) {
+                        appInfoVO.setUserName(user.getUserName());
+                    } else {
+                        appInfoVO.setUserName("未知用户");
+                    }
+                    
                     if (app.getCodeGenType() != null) {
                         appInfoVO.setCodeGenType(app.getCodeGenType().getValue());
                     }
@@ -507,6 +536,20 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements IAppS
                 .map(app -> {
                     AppInfoVO appInfoVO = new AppInfoVO();
                     BeanUtils.copyProperties(app, appInfoVO);
+                    
+                    // 设置用户名称
+                    User user = userService.getById(app.getUserId());
+                    if (user != null) {
+                        appInfoVO.setUserName(user.getUserName());
+                    } else {
+                        appInfoVO.setUserName("未知用户");
+                    }
+                    
+                    // 设置代码生成类型
+                    if (app.getCodeGenType() != null) {
+                        appInfoVO.setCodeGenType(app.getCodeGenType().getValue());
+                    }
+                    
                     return appInfoVO;
                 })
                 .collect(Collectors.toList());

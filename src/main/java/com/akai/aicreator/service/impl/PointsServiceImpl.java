@@ -147,8 +147,15 @@ public class PointsServiceImpl implements IPointsService {
         try {
             String cacheKey = POINTS_CACHE_KEY + userId;
             Object cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached instanceof Integer) {
-                return (Integer) cached;
+            if (cached != null) {
+                // 处理不同的数字类型
+                if (cached instanceof Integer) {
+                    return (Integer) cached;
+                } else if (cached instanceof Long) {
+                    return ((Long) cached).intValue();
+                } else if (cached instanceof Number) {
+                    return ((Number) cached).intValue();
+                }
             }
         } catch (Exception e) {
             log.warn("从Redis获取用户ID: {} 积分缓存失败: {}", userId, e.getMessage());
@@ -165,6 +172,12 @@ public class PointsServiceImpl implements IPointsService {
     private void updatePointsCache(Long userId, Integer points, boolean isAdd) {
         try {
             String cacheKey = POINTS_CACHE_KEY + userId;
+            
+            // 检查key是否存在，如果不存在则先设置初始值
+            if (!Boolean.TRUE.equals(redisTemplate.hasKey(cacheKey))) {
+                // 如果key不存在，先设置初始值
+                redisTemplate.opsForValue().set(cacheKey, 0);
+            }
             
             if (isAdd) {
                 // 增加积分

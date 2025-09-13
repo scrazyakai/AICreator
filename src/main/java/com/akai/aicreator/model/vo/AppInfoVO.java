@@ -53,6 +53,10 @@ public class AppInfoVO {
      * 创建用户id
      */
     private Long userId;
+    /**
+     * 用户名称
+     */
+    private String userName;
 
     /**
      * 编辑时间

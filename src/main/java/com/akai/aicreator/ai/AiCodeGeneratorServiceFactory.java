@@ -1,10 +1,12 @@
 package com.akai.aicreator.ai;
 
+import com.akai.aicreator.ai.guardrail.PromptSafetyInputGuardrail;
+import com.akai.aicreator.ai.guardrail.RetryOutputGuardrail;
 import com.akai.aicreator.ai.tools.*;
 import com.akai.aicreator.config.ReasoningStreamingChatModelConfig;
+import com.akai.aicreator.config.StreamingChatModelConfig;
 import com.akai.aicreator.model.enums.CodeGenTypeEnum;
 import com.akai.aicreator.service.IChatHistoryService;
-import com.akai.aicreator.utils.SpringContextUtil;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.langchain4j.community.store.memory.chat.redis.RedisChatMemoryStore;
@@ -15,6 +17,7 @@ import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.service.AiServices;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -24,18 +27,18 @@ import java.time.Duration;
 @Slf4j
 public class AiCodeGeneratorServiceFactory {
 
-    @Resource
+    @Resource(name = "openAiChatModel")
     private ChatModel chatModel;
-    @Resource
-    private StreamingChatModel openAiStreamingChatModel;
     @Resource
     private RedisChatMemoryStore redisChatMemoryStore;
     @Resource
     private IChatHistoryService chatHistoryService;
     @Resource
-    private StreamingChatModel reasoningStreamingChatModel;
-    @Resource
     private ToolManager toolManager;
+    
+    // 注入 ApplicationContext 来动态获取 prototype Bean
+    @Resource
+    private ApplicationContext applicationContext;
     /**
      * 根据 appId 获取服务（为了兼容老逻辑）
      *
@@ -87,22 +90,36 @@ public class AiCodeGeneratorServiceFactory {
                 .build();
         chatHistoryService.loadChatHistoryToMemory(appId,chatMemory,20);
         return switch (codeGenTypeEnum){
-            case HTML,MULTI_FILE -> AiServices.builder(AiCodeGeneratorService.class)
-                    .chatModel(chatModel)
-                    .streamingChatModel(openAiStreamingChatModel)
-                    .chatMemory(chatMemory)
-                    .build();
-            case VUE_PROJECT-> AiServices.builder(AiCodeGeneratorService.class)
-                   .chatModel(chatModel)
-                   .streamingChatModel(reasoningStreamingChatModel)
-                   .chatMemoryProvider(memoryId -> chatMemory)
-                   .tools(toolManager.getAllTools())
-                   //解决未找到工具出现的问题
-                   .hallucinatedToolNameStrategy(toolExecutionRequest ->
-                       ToolExecutionResultMessage.from(toolExecutionRequest,
-                               "Error: there is no tool called "+toolExecutionRequest.name())
-                    )
-                   .build();
+
+            case HTML,MULTI_FILE ->{
+                // 每次创建时获取新的 prototype 实例
+                StreamingChatModel streamingChatModel = applicationContext.getBean("streamingChatModelPrototype", StreamingChatModel.class);
+                yield  AiServices.builder(AiCodeGeneratorService.class)
+                        .chatModel(chatModel)
+                        .streamingChatModel(streamingChatModel)
+                        .chatMemory(chatMemory)
+                        .inputGuardrails(new PromptSafetyInputGuardrail())
+                        //.outputGuardrails(new RetryOutputGuardrail())影响前端流式输出
+                        .build();
+            }
+
+            case VUE_PROJECT-> {
+                // 每次创建时获取新的 prototype 实例
+                StreamingChatModel reasoningStreamingChatModel = applicationContext.getBean("reasoningStreamingChatModelPrototype", StreamingChatModel.class);
+                yield AiServices.builder(AiCodeGeneratorService.class)
+                        .chatModel(chatModel)
+                        .streamingChatModel(reasoningStreamingChatModel)
+                        .chatMemoryProvider(memoryId -> chatMemory)
+                        .tools((Object) toolManager.getAllTools())
+                        //解决未找到工具出现的问题
+                        .hallucinatedToolNameStrategy(toolExecutionRequest ->
+                                ToolExecutionResultMessage.from(toolExecutionRequest,
+                                        "Error: there is no tool called "+toolExecutionRequest.name())
+                        )
+                        .inputGuardrails(new PromptSafetyInputGuardrail())
+                        //.outputGuardrails(new RetryOutputGuardrail()) 影响前端流式输出
+                        .build();
+            }
 
         };
     }

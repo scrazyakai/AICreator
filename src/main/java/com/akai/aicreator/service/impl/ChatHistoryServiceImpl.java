@@ -190,11 +190,16 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
 
         QueryWrapper<ChatHistory> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("appId", appId);
+        long count = this.count(queryWrapper);
+        if(count == 0){
+            log.info("该APP不存在聊天记录:{}",appId);
+            return true;
+        }
         boolean remove = this.remove(queryWrapper);
         if(!remove){
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除失败");
         }
-        return remove;
+        return true;
     }
 
     @Override

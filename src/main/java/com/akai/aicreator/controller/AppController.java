@@ -14,6 +14,8 @@ import com.akai.aicreator.model.enums.MessageTypeEnum;
 import com.akai.aicreator.model.enums.UserRoleEnum;
 import com.akai.aicreator.model.request.*;
 import com.akai.aicreator.model.vo.AppInfoVO;
+import com.akai.aicreator.ratelimit.annotation.RateLimit;
+import com.akai.aicreator.ratelimit.enums.RateLimitType;
 import com.akai.aicreator.service.IAppService;
 import com.akai.aicreator.service.IChatHistoryService;
 import com.akai.aicreator.service.IUserService;
@@ -70,7 +72,7 @@ public class AppController {
         String deployUrl = appService.deployApp(appId);
         return ResultUtils.success(deployUrl);
     }
-
+    @RateLimit(limitType = RateLimitType.API, rate = 5,message = "AI调用频繁，请稍后再试")
     @GetMapping(value = "/chat/gen/code", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> chatToGenCode(@RequestParam Long appId,
                                       @RequestParam String message) {
